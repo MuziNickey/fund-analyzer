@@ -1,0 +1,25 @@
+# 环境变量 - 包含 API Key 绝对不能上传
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+venv/
+
+# Streamlit
+.streamlit/
+
+# IDE
+.vscode/
+.idea/
+
+# Test
+.pytest_cache/
+
+# 临时文件
+_verify_fix.py
+_debug_*.json
+*.tmp
