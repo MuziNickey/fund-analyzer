@@ -39,3 +39,31 @@ def calc_max_drawdown(nav_series: pd.Series) -> float:
     cumulative_max = nav_series.cummax()
     drawdown = (nav_series - cumulative_max) / cumulative_max
     return float(drawdown.min())
+
+
+def calc_rsi(nav: pd.Series, period: int = 14) -> pd.Series:
+    """Calculate RSI, returns 0-100 Series"""
+    delta = nav.diff()
+    gain = delta.clip(lower=0)
+    loss = (-delta).clip(lower=0)
+    avg_gain = gain.rolling(window=period).mean()
+    avg_loss = loss.rolling(window=period).mean()
+    rs = avg_gain / avg_loss.replace(0, 1e-10)
+    return 100 - (100 / (1 + rs))
+
+
+def calc_bollinger(nav: pd.Series, period: int = 20, std: float = 2.0):
+    """Calculate Bollinger Bands, returns (upper, middle, lower) Series"""
+    middle = nav.rolling(window=period).mean()
+    rolling_std = nav.rolling(window=period).std()
+    upper = middle + std * rolling_std
+    lower = middle - std * rolling_std
+    return upper, middle, lower
+
+
+def calc_volatility(nav: pd.Series, period: int = 20) -> float:
+    """Calculate annualized volatility (last 'period' days std * sqrt(252))"""
+    returns = nav.pct_change().dropna().iloc[-period:]
+    if len(returns) < 2:
+        return 0.0
+    return float(returns.std() * (252 ** 0.5))

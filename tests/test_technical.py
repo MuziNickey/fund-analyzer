@@ -48,3 +48,48 @@ def test_calc_max_drawdown_returns_negative_float():
     mdd = calc_max_drawdown(nav)
     assert isinstance(mdd, float)
     assert mdd < 0
+
+
+def test_calc_rsi_value_range():
+    """RSI value range must be in [0, 100]"""
+    import pandas as pd
+    import numpy as np
+    from data.technical import calc_rsi
+
+    np.random.seed(42)
+    nav = pd.Series(1.0 + np.cumsum(np.random.randn(100) * 0.01))
+    rsi = calc_rsi(nav, period=14)
+    assert 0 <= rsi.iloc[-1] <= 100
+    assert rsi.isna().sum() == 14  # first diff NaN + 13 rolling NaN = 14
+
+
+def test_calc_bollinger_band_order():
+    """Bollinger Bands: upper > middle > lower"""
+    import pandas as pd
+    import numpy as np
+    from data.technical import calc_bollinger
+
+    np.random.seed(42)
+    nav = pd.Series(1.0 + np.cumsum(np.random.randn(30) * 0.01))
+    upper, middle, lower = calc_bollinger(nav, period=20, std=2)
+    assert upper.iloc[-1] > middle.iloc[-1] > lower.iloc[-1]
+    assert len(upper) == 30
+
+
+def test_calc_volatility_positive_or_zero():
+    """Volatility must be >= 0"""
+    import pandas as pd
+    from data.technical import calc_volatility
+
+    # constant series -> vol = 0
+    nav_flat = pd.Series([1.0] * 30)
+    vol_flat = calc_volatility(nav_flat, period=20)
+    assert vol_flat == 0.0
+
+    # fluctuating series -> vol > 0
+    import numpy as np
+    np.random.seed(42)
+    nav_vol = pd.Series(1.0 + np.cumsum(np.random.randn(50) * 0.01))
+    vol = calc_volatility(nav_vol, period=20)
+    assert vol > 0
+    assert isinstance(vol, float)
