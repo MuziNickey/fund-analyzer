@@ -6,6 +6,8 @@ from analysis.predictor import (
     PredictionResult,
     build_feature_matrix,
     find_similar_patterns,
+    compute_period_prediction,
+    predict_fund_return,
 )
 
 
@@ -35,10 +37,10 @@ def test_prediction_result_dataclass():
         pred_1m=pp,
         pred_2m=pp,
         pred_3m=pp,
-        confidence="High",
+        confidence="高",
     )
     assert pr.code == "000001"
-    assert pr.confidence == "High"
+    assert pr.confidence == "高"
     assert pr.pred_1m.win_probability == 0.7
 
 
@@ -95,3 +97,49 @@ def test_find_similar_patterns_returns_top_n():
     assert "similarity" in result.columns
     assert result.iloc[0]["similarity"] >= result.iloc[-1]["similarity"]
     assert result["similarity"].max() >= 0.99
+
+
+def test_compute_period_prediction():
+    forward_returns = pd.Series([0.05, 0.03, 0.08, -0.02, 0.01, 0.06, -0.04, 0.02, 0.09, 0.0])
+    result = compute_period_prediction(forward_returns)
+    assert isinstance(result, PeriodPrediction)
+    assert result.win_probability == 0.7
+    assert result.max_gain == 0.09
+    assert result.max_loss == -0.04
+    assert result.p25_return <= result.median_return <= result.p75_return
+
+
+def test_compute_period_prediction_empty():
+    assert compute_period_prediction(pd.Series(dtype=float)) is None
+
+
+def test_predict_fund_return_with_synthetic_data():
+    np.random.seed(42)
+    dates = pd.date_range("2025-01-01", periods=200, freq="B")
+    fund_nav = pd.Series(1.0 + np.cumsum(np.random.randn(200) * 0.005))
+
+    result = predict_fund_return(fund_nav, fund_nav.copy(), code="TEST", name="Test")
+
+    assert isinstance(result, PredictionResult)
+    assert result.code == "TEST"
+    assert result.match_count >= 5
+    assert 0.0 <= result.avg_similarity <= 1.0
+    assert result.pred_1m is not None
+    assert 0 <= result.pred_1m.win_probability <= 1
+    assert result.pred_2m is not None
+    assert result.pred_3m is not None
+    assert result.confidence in ("高", "中", "低")
+
+
+def test_predict_fund_return_insufficient_data():
+    np.random.seed(42)
+    short_nav = pd.Series(1.0 + np.cumsum(np.random.randn(30) * 0.005))
+
+    result = predict_fund_return(short_nav, short_nav.copy(), code="NEW", name="New Fund")
+
+    assert result.code == "NEW"
+    assert result.pred_1m is None
+    assert result.pred_2m is None
+    assert result.pred_3m is None
+    assert result.match_count == 0
+    assert result.confidence == "低"
