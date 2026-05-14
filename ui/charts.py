@@ -95,18 +95,27 @@ def plot_volume(df: pd.DataFrame, fund_name: str) -> go.Figure:
     """绘制成交量图"""
     fig = go.Figure()
     vol_col = None
+    vol_label = "成交量"
     for col in ["成交量", "volume", "手"]:
         if col in df.columns:
             vol_col = col
             break
 
+    if vol_col is None and "日增长率" in df.columns:
+        vol_col = "日增长率"
+        vol_label = "日涨跌幅 (%)"
+
     if vol_col:
-        diffs = df["单位净值"].diff()
-        colors = ["#ef5350" if diffs.iloc[i] >= 0 else "#26a69a"
-                  for i in range(len(df))]
+        if vol_col == "日增长率":
+            vals = pd.to_numeric(df[vol_col], errors="coerce")
+            colors = ["#ef5350" if v >= 0 else "#26a69a" for v in vals]
+        else:
+            diffs = df["单位净值"].diff()
+            colors = ["#ef5350" if diffs.iloc[i] >= 0 else "#26a69a"
+                      for i in range(len(df))]
         fig.add_trace(go.Bar(
             x=df["净值日期"], y=df[vol_col],
-            name="成交量", marker_color=colors,
+            name=vol_label, marker_color=colors,
             opacity=0.6
         ))
     else:
@@ -116,9 +125,9 @@ def plot_volume(df: pd.DataFrame, fund_name: str) -> go.Figure:
         )
 
     fig.update_layout(
-        title=f"{fund_name} — 成交量",
+        title=f"{fund_name} — {vol_label}",
         xaxis_title="日期",
-        yaxis_title="成交量",
+        yaxis_title=vol_label,
         height=250,
         hovermode="x unified",
         margin=dict(l=20, r=20, t=40, b=20),
@@ -157,6 +166,15 @@ def plot_return_distribution(pred_1m, pred_2m, pred_3m, fund_name: str) -> go.Fi
     fig.update_layout(
         title=f"{fund_name} — 盈利预测分布",
         height=300,
-        margin=dict(l=20, r=20, t=50, b=20),
+        margin=dict(l=20, r=20, t=50, b=60),
+    )
+    fig.update_xaxes(title_text="统计分位", row=1, col=1)
+    fig.update_xaxes(title_text="统计分位", row=1, col=2)
+    fig.update_xaxes(title_text="统计分位", row=1, col=3)
+    fig.update_yaxes(title_text="收益率", row=1, col=1)
+    fig.add_annotation(
+        text="P25=偏保守 · 中位=中性预期 · P75=偏乐观 | 柱高=预期收益率 柱色=盈亏方向",
+        xref="paper", yref="paper", x=0.5, y=-0.18,
+        showarrow=False, font=dict(size=11, color="#888"),
     )
     return fig

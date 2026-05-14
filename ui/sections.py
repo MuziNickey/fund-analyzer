@@ -217,7 +217,7 @@ def render_block2_screening():
                     pred_data = []
                     for p in predictions:
                         row_data = {"基金代码": p.code, "基金简称": p.name}
-                        for period_key, label in [("pred_1m", "1月"), ("pred_2m", "2月"), ("pred_3m", "3月")]:
+                        for period_key, label in [("pred_1m", "近1月"), ("pred_2m", "近2月"), ("pred_3m", "近3月")]:
                             pp = getattr(p, period_key)
                             if pp:
                                 arrow = "↑" if pp.median_return > 0 else "↓"
@@ -268,6 +268,7 @@ def render_block3_portfolio():
         with c2:
             cost_nav = st.number_input(
                 "成本净值", min_value=0.0001, step=0.0001, format="%.4f",
+                help="您买入该基金时的单位净值，用于计算持仓盈亏",
                 key="input_cost_nav",
             )
         with c3:
@@ -656,12 +657,12 @@ def render_block5_advice(client):
         for p in sorted(valid_preds, key=lambda x: x.pred_1m.win_probability, reverse=True):
             compare_data.append({
                 "基金": f"{p.name} ({p.code})",
-                "1月概率": f"{p.pred_1m.win_probability:.0%}",
-                "1月预期": f"{p.pred_1m.median_return:+.1%}",
-                "2月概率": f"{p.pred_2m.win_probability:.0%}",
-                "2月预期": f"{p.pred_2m.median_return:+.1%}",
-                "3月概率": f"{p.pred_3m.win_probability:.0%}",
-                "3月预期": f"{p.pred_3m.median_return:+.1%}",
+                "近1月概率": f"{p.pred_1m.win_probability:.0%}",
+                "近1月预期": f"{p.pred_1m.median_return:+.1%}",
+                "近2月概率": f"{p.pred_2m.win_probability:.0%}",
+                "近2月预期": f"{p.pred_2m.median_return:+.1%}",
+                "近3月概率": f"{p.pred_3m.win_probability:.0%}",
+                "近3月预期": f"{p.pred_3m.median_return:+.1%}",
                 "置信度": p.confidence,
             })
         st.dataframe(pd.DataFrame(compare_data), use_container_width=True, hide_index=True)
@@ -669,9 +670,9 @@ def render_block5_advice(client):
         pred_summary_lines = []
         for p in valid_preds:
             pred_summary_lines.append(
-                f"{p.name}: 1月{p.pred_1m.win_probability:.0%}+{p.pred_1m.median_return:+.1%} "
-                f"2月{p.pred_2m.win_probability:.0%}+{p.pred_2m.median_return:+.1%} "
-                f"3月{p.pred_3m.win_probability:.0%}+{p.pred_3m.median_return:+.1%}"
+                f"{p.name}: 近1月{p.pred_1m.win_probability:.0%}+{p.pred_1m.median_return:+.1%} "
+                f"近2月{p.pred_2m.win_probability:.0%}+{p.pred_2m.median_return:+.1%} "
+                f"近3月{p.pred_3m.win_probability:.0%}+{p.pred_3m.median_return:+.1%}"
             )
         technical_signals = technical_signals + "\n\n盈利预测:\n" + "\n".join(pred_summary_lines)
 
