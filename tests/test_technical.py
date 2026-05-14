@@ -1,7 +1,7 @@
 import pytest
 import pandas as pd
 import numpy as np
-from data.technical import calc_ma, calc_macd, detect_cross, calc_max_drawdown
+from data.technical import calc_ma, calc_macd, detect_cross, calc_max_drawdown, calc_rsi, calc_bollinger, calc_volatility
 
 
 @pytest.fixture
@@ -93,3 +93,22 @@ def test_calc_volatility_positive_or_zero():
     vol = calc_volatility(nav_vol, period=20)
     assert vol > 0
     assert isinstance(vol, float)
+
+
+def test_extract_feature_vector_six_dims_all_in_range():
+    """6-dim feature vector each value in [0,1] range"""
+    import pandas as pd
+    import numpy as np
+    from data.technical import extract_feature_vector
+
+    np.random.seed(42)
+    fund_nav = pd.Series(1.0 + np.cumsum(np.random.randn(60) * 0.01))
+    bench_nav = pd.Series(1.0 + np.cumsum(np.random.randn(60) * 0.008))
+
+    features = extract_feature_vector(fund_nav, bench_nav)
+
+    assert len(features) == 6
+    for key, val in features.items():
+        assert 0.0 <= val <= 1.0, f"{key} = {val}, expected [0,1]"
+    expected_keys = {"F1_ma_align", "F2_macd_momentum", "F3_rsi", "F4_bollinger", "F5_volatility", "F6_benchmark"}
+    assert set(features.keys()) == expected_keys
