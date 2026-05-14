@@ -130,3 +130,12 @@ def get_fund_name(code: str) -> str:
     except Exception:
         pass
     return code
+
+
+@cached(ttl_seconds=14400)
+def fetch_benchmark_data(days: int = 365) -> pd.Series:
+    """获取沪深300 ETF（510300）净值序列作为基准"""
+    df = fetch_fund_nav_history("510300", days=days)
+    if df.empty or "单位净值" not in df.columns:
+        return pd.Series([1.0] * max(days, 60))
+    return df.set_index("净值日期")["单位净值"]

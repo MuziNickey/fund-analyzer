@@ -138,3 +138,39 @@ def _fallback_advice(portfolio_diagnosis: str, top_funds_info: str) -> str:
 ## 风险提示
 本工具基于历史数据和技术指标生成分析，不构成投资建议。
 历史收益不代表未来表现。基金投资有风险，入市需谨慎。"""
+
+
+def generate_prediction_analysis(client, predictions: list, market_sentiment: str) -> str:
+    """AI prediction refinement: feed quantitative predictions + market sentiment to DeepSeek"""
+    if client is None or not predictions:
+        return ""
+
+    valid_preds = [p for p in predictions if p.pred_1m is not None]
+    if not valid_preds:
+        return ""
+
+    lines = ["市场情绪：" + market_sentiment, "", "量化预测结果："]
+    for p in valid_preds:
+        lines.append(
+            f"- {p.name} ({p.code}) "
+            f"1月: 概率{p.pred_1m.win_probability:.0%} 中位{p.pred_1m.median_return:+.2%} "
+            f"2月: 概率{p.pred_2m.win_probability:.0%} 中位{p.pred_2m.median_return:+.2%} "
+            f"3月: 概率{p.pred_3m.win_probability:.0%} 中位{p.pred_3m.median_return:+.2%} "
+            f"置信度: {p.confidence}"
+        )
+
+    prompt = f"""你是资深基金投资分析师。请解读以下量化预测，给出修正意见。
+
+{chr(10).join(lines[:2500])}
+
+请用简洁中文输出：
+## 预测修正解读
+对每只基金给出 1-2 句修正意见（概率是否偏高/偏低、关键风险）
+
+## 综合排序
+按 1 月盈利概率从高到低排列，每只一句话评价"""
+
+    try:
+        return _call_ai(client, prompt, max_tokens=2000)
+    except Exception:
+        return ""

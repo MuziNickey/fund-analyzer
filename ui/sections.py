@@ -120,6 +120,12 @@ def render_block2_screening():
             help="筛选规模不低于此值的基金",
         )
 
+        enable_prediction = st.checkbox(
+            "启用盈利预测（耗时约15-30秒）",
+            value=False,
+            help="基于历史模式匹配预测 1/2/3 月盈利概率",
+        )
+
     # ---- 获取数据 ----
     with st.spinner("正在获取全市场基金排名..."):
         try:
@@ -183,6 +189,67 @@ def render_block2_screening():
             f" | 近3月: {fund.get('近3月', '')}"
             f" | 规模: {fund.get('基金规模', '')}"
         )
+
+    # ---- 盈利预测 ----
+    if enable_prediction:
+        predictions = []
+        with st.spinner("正在进行盈利预测（模式匹配 + 统计推断）..."):
+            try:
+                from analysis.predictor import predict_fund_return
+                from data.fund_fetcher import fetch_fund_nav_history, fetch_benchmark_data
+
+                benchmark_nav = fetch_benchmark_data(days=365)
+                for _, fund in result.iterrows():
+                    code = fund["基金代码"]
+                    name = fund.get("基金简称", code)
+                    try:
+                        nav_history = fetch_fund_nav_history(str(code), days=365)
+                        if nav_history.empty or len(nav_history) < 60:
+                            continue
+                        nav_series = nav_history.set_index("净值日期")["单位净值"]
+                        pred = predict_fund_return(nav_series, benchmark_nav, code=str(code), name=str(name))
+                        predictions.append(pred)
+                    except Exception:
+                        continue
+
+                if predictions:
+                    st.subheader("盈利预测")
+                    pred_data = []
+                    for p in predictions:
+                        row_data = {"基金代码": p.code, "基金简称": p.name}
+                        for period_key, label in [("pred_1m", "1月"), ("pred_2m", "2月"), ("pred_3m", "3月")]:
+                            pp = getattr(p, period_key)
+                            if pp:
+                                arrow = "↑" if pp.median_return > 0 else "↓"
+                                row_data[f"预测{label}"] = f"{pp.win_probability:.0%} {arrow}"
+                            else:
+                                row_data[f"预测{label}"] = "N/A"
+                        pred_data.append(row_data)
+
+                    pred_df = pd.DataFrame(pred_data)
+
+                    def color_pred(val):
+                        if "N/A" in str(val):
+                            return "color: gray"
+                        pct_str = str(val).split("%")[0].strip()
+                        try:
+                            pct = float(pct_str) / 100
+                            if pct >= 0.60:
+                                return "color: #4caf50; font-weight: bold"
+                            elif pct >= 0.40:
+                                return "color: #ff9800"
+                            else:
+                                return "color: #9e9e9e"
+                        except ValueError:
+                            return ""
+
+                    styled_pred = pred_df.style.map(
+                        color_pred, subset=[c for c in pred_df.columns if "预测" in c]
+                    )
+                    st.dataframe(styled_pred, use_container_width=True, hide_index=True)
+                    st.session_state["predictions"] = predictions
+            except Exception as e:
+                st.warning(f"预测失败：{e}")
 
 
 # ---------------------------------------------------------------------------
@@ -434,6 +501,9 @@ def render_block4_technical():
         st.info("暂无数据可分析，请先添加持仓或进行基金筛选")
         return
 
+    predictions = st.session_state.get("predictions", [])
+    pred_map = {p.code: p for p in predictions}
+
     all_signals: list[str] = []
 
     for fund in funds_to_analyze:
@@ -500,6 +570,32 @@ def render_block4_technical():
                 else:
                     st.caption("近期无明确交叉信号")
 
+                # ---- 盈利预测卡片 ----
+                pred = pred_map.get(str(code))
+                if pred and pred.pred_1m:
+                    from ui.charts import plot_return_distribution
+
+                    st.markdown(f"##### 📈 盈利预测 — 置信度: {pred.confidence}")
+                    c1, c2, c3, c4 = st.columns(4)
+                    pp_list = [("近1月", pred.pred_1m), ("近2月", pred.pred_2m), ("近3月", pred.pred_3m)]
+                    for ci, (label, pp) in enumerate(pp_list):
+                        with [c1, c2, c3][ci]:
+                            color = "#4caf50" if pp.win_probability >= 0.6 else ("#ff9800" if pp.win_probability >= 0.4 else "#9e9e9e")
+                            st.metric(label=label, value=f"{pp.win_probability:.0%}", delta=f"{pp.median_return:+.1%}")
+                    with c4:
+                        st.metric("平均相似度", f"{pred.avg_similarity:.2f}")
+
+                    st.caption(
+                        f"预期区间: {pred.pred_1m.p25_return:+.1%} ~ {pred.pred_1m.p75_return:+.1%} | "
+                        f"基于 {pred.match_count} 个最相似历史情景"
+                    )
+
+                    fig_dist = plot_return_distribution(pred.pred_1m, pred.pred_2m, pred.pred_3m, name)
+                    st.plotly_chart(fig_dist, use_container_width=True)
+
+                    if pred.confidence == "低":
+                        st.warning("相似度较低，预测结果仅供参考")
+
                 st.markdown("---")
 
             except Exception as e:
@@ -549,6 +645,43 @@ def render_block5_advice(client):
                 f"{r['label']} | {r['suggestion']}"
             )
     portfolio_diagnosis = "\n".join(diag_lines) if diag_lines else "暂无持仓"
+
+    # ---- 预测汇总对比表 ----
+    predictions = st.session_state.get("predictions", [])
+    valid_preds = [p for p in predictions if p.pred_1m is not None]
+    if valid_preds:
+        st.subheader("📊 预测汇总对比")
+
+        compare_data = []
+        for p in sorted(valid_preds, key=lambda x: x.pred_1m.win_probability, reverse=True):
+            compare_data.append({
+                "基金": f"{p.name} ({p.code})",
+                "1月概率": f"{p.pred_1m.win_probability:.0%}",
+                "1月预期": f"{p.pred_1m.median_return:+.1%}",
+                "2月概率": f"{p.pred_2m.win_probability:.0%}",
+                "2月预期": f"{p.pred_2m.median_return:+.1%}",
+                "3月概率": f"{p.pred_3m.win_probability:.0%}",
+                "3月预期": f"{p.pred_3m.median_return:+.1%}",
+                "置信度": p.confidence,
+            })
+        st.dataframe(pd.DataFrame(compare_data), use_container_width=True, hide_index=True)
+
+        pred_summary_lines = []
+        for p in valid_preds:
+            pred_summary_lines.append(
+                f"{p.name}: 1月{p.pred_1m.win_probability:.0%}+{p.pred_1m.median_return:+.1%} "
+                f"2月{p.pred_2m.win_probability:.0%}+{p.pred_2m.median_return:+.1%} "
+                f"3月{p.pred_3m.win_probability:.0%}+{p.pred_3m.median_return:+.1%}"
+            )
+        technical_signals = technical_signals + "\n\n盈利预测:\n" + "\n".join(pred_summary_lines)
+
+        # AI 预测修正
+        if client:
+            from analysis.recommender import generate_prediction_analysis
+            with st.spinner("AI 正在修正预测..."):
+                ai_prediction = generate_prediction_analysis(client, valid_preds, market_sentiment)
+            if ai_prediction:
+                st.markdown(ai_prediction)
 
     with st.spinner("AI 正在生成综合投资建议..."):
         advice = generate_investment_advice(

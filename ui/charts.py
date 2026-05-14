@@ -124,3 +124,39 @@ def plot_volume(df: pd.DataFrame, fund_name: str) -> go.Figure:
         margin=dict(l=20, r=20, t=40, b=20),
     )
     return fig
+
+
+def plot_return_distribution(pred_1m, pred_2m, pred_3m, fund_name: str) -> go.Figure:
+    """Plot predicted return distribution for 3 time horizons"""
+    fig = make_subplots(
+        rows=1, cols=3,
+        subplot_titles=("近1月", "近2月", "近3月"),
+        shared_yaxes=True,
+    )
+
+    periods = [(pred_1m, 1), (pred_2m, 2), (pred_3m, 3)]
+    for pred, col in periods:
+        if pred is None:
+            continue
+        x_vals = [pred.max_loss, pred.p25_return, pred.median_return, pred.p75_return, pred.max_gain]
+        x_labels = ["最大亏损", "P25", "中位", "P75", "最大收益"]
+        colors_bar = ["#ef5350" if v < 0 else "#4caf50" for v in x_vals]
+
+        fig.add_trace(
+            go.Bar(
+                x=x_labels, y=x_vals,
+                marker_color=colors_bar,
+                text=[f"{v:+.1%}" for v in x_vals],
+                textposition="outside",
+                showlegend=False,
+            ),
+            row=1, col=col,
+        )
+        fig.add_hline(y=0, line_dash="dash", line_color="gray", row=1, col=col)
+
+    fig.update_layout(
+        title=f"{fund_name} — 盈利预测分布",
+        height=300,
+        margin=dict(l=20, r=20, t=50, b=20),
+    )
+    return fig
