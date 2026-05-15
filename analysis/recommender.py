@@ -89,14 +89,16 @@ def generate_investment_advice(
     if client is None:
         return _fallback_advice(portfolio_diagnosis, top_funds_info)
 
-    prompt = f"""你是资深基金投资顾问。基于以下信息给出中文投资建议。
+    prompt = f"""你是资深基金投资顾问，专长于3-6个月的中长线投资策略。基于以下信息给出中文投资建议。
+
+重要原则：基于长线投资逻辑给出建议，避免建议在短期内频繁调仓。对于趋势信号已确认的持仓，优先建议维持现有操作，除非出现明确的技术面反转信号。
 
 市场情绪：{market_sentiment}
 
-市场优质基金：
+市场优质基金（今日快照参考）：
 {top_funds_info[:1500]}
 
-用户持仓诊断：
+用户持仓诊断（含长线预测信号）：
 {portfolio_diagnosis[:1500]}
 
 技术信号：
@@ -105,11 +107,11 @@ def generate_investment_advice(
 请用Markdown格式输出：
 
 ## 持仓操作建议
-| 基金 | 当前状态 | 建议 | 理由 |
-（为每只持仓基金给出具体建议）
+| 基金 | 当前状态 | 长线建议 | 理由 |
+（为每只持仓基金给出具体建议，优先参考长线信号而非短期波动）
 
 ## 新基金推荐（1-2只）
-每只包括：推荐理由、投资策略（定投/分批/一次性）、建议持有周期（1-3月/3-6月/6月+）、资金占比、止盈参考位、止损参考位
+每只包括：推荐理由、投资策略（定投/分批/一次性）、建议持有周期（3-6月/6月+）、资金占比、止盈参考位、止损参考位
 
 ## 整体资金配置
 持仓 vs 新投 vs 现金 的比例建议
@@ -124,11 +126,13 @@ def generate_investment_advice(
 
 def _fallback_advice(portfolio_diagnosis: str, top_funds_info: str) -> str:
     """无 AI 时的纯量化备用建议"""
-    return f"""## 持仓操作建议（基于量化评分）
+    return f"""## 持仓操作建议（基于量化评分 + 长线视角）
 
 {portfolio_diagnosis}
 
-## 市场优质基金参考
+> 提示：建议以"长线信号"为主要参考，"短期建议"为辅助参考。长线信号经过指数平滑（30%新数据+70%历史加权），连续3天确认后才变更，避免短期波动干扰。
+
+## 市场优质基金参考（今日快照）
 
 {top_funds_info}
 
@@ -137,7 +141,8 @@ def _fallback_advice(portfolio_diagnosis: str, top_funds_info: str) -> str:
 
 ## 风险提示
 本工具基于历史数据和技术指标生成分析，不构成投资建议。
-历史收益不代表未来表现。基金投资有风险，入市需谨慎。"""
+历史收益不代表未来表现。基金投资有风险，入市需谨慎。
+建议以3-6个月为投资周期，避免频繁调仓产生高额赎回费用。"""
 
 
 def generate_prediction_analysis(client, predictions: list, market_sentiment: str) -> str:
@@ -165,7 +170,7 @@ def generate_prediction_analysis(client, predictions: list, market_sentiment: st
 
 请用简洁中文输出：
 ## 预测修正解读
-对每只基金给出 1-2 句修正意见（概率是否偏高/偏低、关键风险）
+对每只基金给出 1-2 句修正意见（概率是否偏高/偏低、关键风险）。优先关注 3 个月预测概率的趋势方向，区分短期噪声与长期信号。
 
 ## 综合排序
 按 1 月盈利概率从高到低排列，每只一句话评价"""

@@ -1,4 +1,26 @@
 {
-  "holdings": [],
-  "last_updated": ""
+  "holdings": [
+    {
+      "code": "015716",
+      "name": "华夏稳享增利6个月滚动持有债A",
+      "cost_nav": 1.1755,
+      "amount": 900.0,
+      "added_date": "2026-05-15"
+    },
+    {
+      "code": "008999",
+      "name": "景顺景颐嘉利6个月持有期债券A",
+      "cost_nav": 1.3537,
+      "amount": 900.0,
+      "added_date": "2026-05-15"
+    },
+    {
+      "code": "004433",
+      "name": "南方有色金属ETF联接C",
+      "cost_nav": 2.3818,
+      "amount": 827.65,
+      "added_date": "2026-05-15"
+    }
+  ],
+  "last_updated": "2026-05-15 11:48:46"
 }

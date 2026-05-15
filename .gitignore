@@ -23,3 +23,8 @@ venv/
 _verify_fix.py
 _debug_*.json
 *.tmp
+
+# 用户个人数据
+predictions_cache.json
+watchlist.json
+screening_prefs.json
